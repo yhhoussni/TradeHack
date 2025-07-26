@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Trading Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #f0f0f0;
+    }
+    header {
+      background-color: #1e1e1e;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      padding: 1rem;
+    }
+    .card {
+      background-color: #1f1f1f;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #000;
+    }
+    .symbol {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #00f7ff;
+    }
+    .label {
+      font-weight: bold;
+      margin-top: 0.5rem;
+    }
+    .value {
+      margin-left: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header>📊 Smart Trading Dashboard</header>
+  <div class="grid" id="dashboard"></div>
+
+  <script>
+    const symbols = [
+      "BTCUSDT", "ETHUSDT", "XRPUSDT", "ADAUSDT", "SOLUSDT",
+      "XAUUSD", "XAGUSD", "AAPL", "TSLA", "GOOGL",
+      "AMZN", "MSFT", "EURUSD", "USDJPY", "GBPUSD", "AUDUSD"
+    ];
+
+    async function fetchIndicators(symbol) {
+      try {
+        const res = await fetch(`https://your-backend-domain/api/indicators?symbol=${symbol}`);
+        return await res.json();
+      } catch (e) {
+        return { rsi: "Error", macd: "Error", ema: "Error" };
+      }
+    }
+
+    async function fetchForecast(symbol) {
+      try {
+        const res = await fetch(`https://your-backend-domain/api/forecast?symbol=${symbol}`);
+        return await res.json();
+      } catch {
+        return { prediction: "Error" };
+      }
+    }
+
+    async function fetchSentiment(symbol) {
+      try {
+        const res = await fetch(`https://your-backend-domain/api/sentiment?symbol=${symbol}`);
+        return await res.json();
+      } catch {
+        return { sentiment: "Error" };
+      }
+    }
+
+    async function createCard(symbol) {
+      const [indicators, forecast, sentiment] = await Promise.all([
+        fetchIndicators(symbol),
+        fetchForecast(symbol),
+        fetchSentiment(symbol)
+      ]);
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="symbol">${symbol}</div>
+        <div class="label">RSI:</div><span class="value">${indicators.rsi}</span><br>
+        <div class="label">MACD:</div><span class="value">${indicators.macd}</span><br>
+        <div class="label">EMA:</div><span class="value">${indicators.ema}</span><br>
+        <div class="label">Forecast:</div><span class="value">${forecast.prediction}</span><br>
+        <div class="label">Sentiment:</div><span class="value">${sentiment.sentiment}</span>
+      `;
+      document.getElementById("dashboard").appendChild(card);
+    }
+
+    symbols.forEach(createCard);
+  </script>
+</body>
+</html>
+from flask import Flask, request, jsonify
+import yfinance as yf
+import numpy as np
+import pandas as pd
+from ta.momentum import RSIIndicator
+from ta.trend import MACD, EMAIndicator
+from sklearn.ensemble import RandomForestRegressor
+from keras.models import load_model
+import joblib
+import datetime
+
+app = Flask(__name__)
+
+# Load models (assume they are pre-trained and saved)
+rfc_models = {}
+lstm_models = {}
+
+symbols = [
+    "BTC-USD", "ETH-USD", "XRP-USD", "ADA-USD", "SOL-USD",
+    "XAUUSD=X", "XAGUSD=X", "AAPL", "TSLA", "GOOGL",
+    "AMZN", "MSFT", "EURUSD=X", "JPY=X", "GBPUSD=X", "AUDUSD=X"
+]
+
+for symbol in symbols:
+    try:
+        rfc_models[symbol] = joblib.load(f"models/rfc_{symbol}.joblib")
+        lstm_models[symbol] = load_model(f"models/lstm_{symbol}.h5")
+    except:
+        pass
+
+def get_data(symbol):
+    end = datetime.datetime.now()
+    start = end - datetime.timedelta(days=100)
+    data = yf.download(symbol, start=start, end=end, progress=False)
+    return data
+
+@app.route("/api/indicators")
+def indicators():
+    symbol = request.args.get("symbol")
+    yf_symbol = symbol.replace("USDT", "-USD") if "USDT" in symbol else symbol
+    try:
+        data = get_data(yf_symbol)
+        close = data['Close']
+
+        rsi = RSIIndicator(close).rsi().iloc[-1]
+        macd = MACD(close).macd_diff().iloc[-1]
+        ema = EMAIndicator(close, window=20).ema_indicator().iloc[-1]
+
+        return jsonify({
+            "rsi": round(rsi, 2),
+            "macd": round(macd, 2),
+            "ema": round(ema, 2)
+        })
+    except:
+        return jsonify({"rsi": "Error", "macd": "Error", "ema": "Error"})
+
+@app.route("/api/forecast")
+def forecast():
+    symbol = request.args.get("symbol")
+    yf_symbol = symbol.replace("USDT", "-USD") if "USDT" in symbol else symbol
+    try:
+        data = get_data(yf_symbol)
+        close = data['Close'].values.reshape(-1, 1)
+
+        if symbol in rfc_models:
+            model = rfc_models[symbol]
+            pred = model.predict(close[-30:].reshape(1, -1))
+            return jsonify({"prediction": float(pred[0])})
+        elif symbol in lstm_models:
+            model = lstm_models[symbol]
+            pred = model.predict(close[-60:].reshape(1, 60, 1))
+            return jsonify({"prediction": float(pred[0][0])})
+        else:
+            return jsonify({"prediction": "Model Not Found"})
+    except:
+        return jsonify({"prediction": "Error"})
+
+@app.route("/api/sentiment")
+def sentiment():
+    symbol = request.args.get("symbol")
+    # Placeholder logic
+    return jsonify({"sentiment": "Neutral"})
+
+if __name__ == "__main__":
+    app.run(debug=True)
