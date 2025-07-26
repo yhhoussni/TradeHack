@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Trading Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0d1117;
+      color: #c9d1d9;
+    }
+    header {
+      background-color: #161b22;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.5rem;
+      border-bottom: 1px solid #30363d;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+      padding: 2rem;
+    }
+    .card {
+      background-color: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .card h3 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      color: #58a6ff;
+    }
+    .metric {
+      font-size: 0.95rem;
+      margin: 0.2rem 0;
+    }
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.8rem;
+      color: #8b949e;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    📈 Smart Trading Dashboard (AI + Realtime Data)
+  </header>
+  <main>
+    <section class="container" id="market-data"></section>
+  </main>
+  <footer>
+    &copy; 2025 Smart Trading AI — Powered by Machine Learning, Big Data & Real Market APIs
+  </footer>
+
+  <script>
+    const symbols = [
+      'BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'ADAUSDT', 'SOLUSDT',
+      'XAUUSD', 'XAGUSD', 'AAPL', 'TSLA', 'GOOGL', 'AMZN', 'MSFT',
+      'EURUSD', 'USDJPY', 'GBPUSD', 'AUDUSD'
+    ];
+
+    async function fetchData(symbol) {
+      try {
+        const res = await fetch(`https://your-api-server.com/indicators?symbol=${symbol}`);
+        const data = await res.json();
+        return data;
+      } catch (err) {
+        return { rsi: 'Error', macd: 'Error', ema: 'Error', prediction: 'Error' };
+      }
+    }
+
+    async function renderDashboard() {
+      const container = document.getElementById('market-data');
+      for (const symbol of symbols) {
+        const { rsi, macd, ema, prediction } = await fetchData(symbol);
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <h3>${symbol}</h3>
+          <p class="metric">RSI: ${rsi}</p>
+          <p class="metric">MACD: ${macd}</p>
+          <p class="metric">EMA: ${ema}</p>
+          <p class="metric">ML Prediction: ${prediction}</p>
+        `;
+        container.appendChild(card);
+      }
+    }
+
+    renderDashboard();
+  </script>
+</body>
+</html>
